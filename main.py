@@ -2,6 +2,17 @@ import pygame, sys, random
 from  pygame.locals import *
 
 class Game():
+    def l_map(self, path):
+        print(path)
+        game = open(path + ".txt", "r")
+        data = game.read()
+        game.close()
+        data = data.split("\n")
+        game_map = []
+        for row in data:
+            game_map.append(list(row))
+        return game_map
+    
     def __init__(self):
         pygame.init()
 
@@ -11,13 +22,14 @@ class Game():
         self.screen = pygame.display.set_mode((self.window_size),0,32)
 
         self.clock = pygame.time.Clock()
-        self.player = self.Player(self)
+        self.Player = self.Player(self)
         self.platform = self.platform()
         self.click = False
         self.font = pygame.font.SysFont('Comic Sans MS', 30)
-        self.scroll = [0,0]
         self.air_counter = 0
-    
+        self.scroll = [0,0]
+        self.game_map = self.l_map('map') 
+
     class Player():
         def __init__(self,game):
             self.game = game
@@ -28,10 +40,10 @@ class Game():
             self.height = 50
             self.velocity = 2.5
             self.color = (255,100,10)
-            self.player = pygame.image.load("Platform_player.png").convert()
+            self.player = pygame.image.load("Images/Platform_player.png").convert()
             self.player.set_colorkey((255,255,255))
             self.gravity = 0
-            self.player_rect = pygame.Rect(50,50, self.player.get_width(),self.player.get_height())
+            self.player_rect = pygame.Rect(0,0, self.player.get_width(),self.player.get_height())
 
         def move_buttons(self,keys):
             self.player_movement = [0,0]
@@ -45,15 +57,16 @@ class Game():
                     self.player_movement[1] = -4
                     self.game.air_counter += 1
     
-        def draw_player(self,surface):
-            surface.blit(self.player, (self.player_rect.x, self.player_rect.y))
+        def draw_player(self,surface, scroll_x, scroll_y):
+            surface.blit(self.player, (self.player_rect.x - scroll_x, self.player_rect.y - scroll_y))
 
     class platform():
         def __init__(self):
             self.width = 0
             self.height = 0
             self.type = {"static": False, "movement": False, "death": False, "coin": False}
-            self.grass = pygame.image.load("grass.png")
+            self.grass = pygame.image.load("Images/grass.png").convert()
+            self.dirt = pygame.image.load('Images/dirt.png').convert()
             
         def chunk_generation(self, platform_type):
             pass
@@ -137,12 +150,13 @@ class Game():
 
     def game_loop(self):
         while True:
-            platform_coord = [0,100]
+            self.scroll[0] += (self.Player.player_rect.x - self.scroll[0] - 145) / 20
+            self.scroll[1] += (self.Player.player_rect.y - self.scroll[1] - 108) / 20
 
-            self.player.player_movement[1] += self.player.gravity
-            self.player.gravity += 0.2
-            if self.player.gravity > 3:
-                self.player.gravity = 3
+            self.Player.player_movement[1] += self.Player.gravity
+            self.Player.gravity += 0.2
+            if self.Player.gravity > 3:
+                self.Player.gravity = 3
             
             for  event in pygame.event.get():
                 if event.type ==  QUIT:
@@ -152,23 +166,34 @@ class Game():
                     self.draw_pause()
             
             tile_rects = []
-            for i in range(30):
-                self.display.blit(self.platform.grass, platform_coord)
-                tile_rects.append(pygame.Rect(platform_coord[0], platform_coord[1], 16, 16))
-                platform_coord[0] += 16
-                
-            self.player.player_rect, collisons = self.move(self.player.player_rect,self.player.player_movement,tile_rects )
+            y = 0
+            for row in self.game_map:
+                x = 0
+                for tile in row:
+                    if tile == '1':
+                        self.display.blit(self.platform.dirt, (x*16 - self.scroll[0]  , y*16 - self.scroll[1]  ))
+                    if tile == '2':
+                        self.display.blit(self.platform.grass,(x*16 - self.scroll[0] ,y*16 - self.scroll[1] ))
+                    if tile != '0':
+                        tile_rects.append(pygame.Rect(x*16, y*16, 16, 16))
+                    x += 1
+                y += 1
+                           
+            self.Player.player_rect, collisons = self.move(self.Player.player_rect,self.Player.player_movement,tile_rects )
 
+            if collisons["top"]:
+                self.Player.gravity = 0.5
+            
             if collisons["bottom"]:
-                self.player.gravity = 0
+                self.Player.gravity = 0
                 self.air_counter = 0 
             else:
                 self.air_counter += 1
             
             keys  = pygame.key.get_pressed()
-            self.player.move_buttons(keys)     
+            self.Player.move_buttons(keys)     
             
-            self.player.draw_player(self.display)
+            self.Player.draw_player(self.display,self.scroll[0], self.scroll[1] )
              
             surf = pygame.transform.scale(self.display, self.window_size)
             self.screen.blit(surf, (0,0))
