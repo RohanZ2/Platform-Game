@@ -2,17 +2,6 @@ import pygame, sys, random
 from  pygame.locals import *
 
 class Game():
-    def l_map(self, path):
-        print(path)
-        game = open(path + ".txt", "r")
-        data = game.read()
-        game.close()
-        data = data.split("\n")
-        game_map = []
-        for row in data:
-            game_map.append(list(row))
-        return game_map
-    
     def __init__(self):
         pygame.init()
 
@@ -23,14 +12,16 @@ class Game():
 
         self.clock = pygame.time.Clock()
         self.Player = self.Player(self)
-        self.platform = self.platform()
         self.click = False
         self.font = pygame.font.SysFont('Comic Sans MS', 30)
         self.air_counter = 0
         self.scroll = [0,0]
-        self.game_map = self.l_map('map') 
-
-    class Player():
+        self.chunk_size = 8
+        self.game_map = {}      
+        self.grass = pygame.image.load("Images/grass.png").convert()
+        self.platform_group = pygame.sprite.Group()
+        
+    class Player():  
         def __init__(self,game):
             self.game = game
             self.x = 50
@@ -60,17 +51,34 @@ class Game():
         def draw_player(self,surface, scroll_x, scroll_y):
             surface.blit(self.player, (self.player_rect.x - scroll_x, self.player_rect.y - scroll_y))
 
-    class platform():
-        def __init__(self):
-            self.width = 0
-            self.height = 0
-            self.type = {"static": False, "movement": False, "death": False, "coin": False}
-            self.grass = pygame.image.load("Images/grass.png").convert()
-            self.dirt = pygame.image.load('Images/dirt.png').convert()
-            
-        def chunk_generation(self, platform_type):
-            pass
+    class platform(pygame.sprite.Sprite):
+        def __init__(self, image, x, y ):
+            super().__init__()
+            self.image = image
+            self.rect = self.image.get_rect(topleft=(x,y))
+    
+        def chunk_generation(chunk_x,chunk_y, chunk_size, platform_image, platforms_group): # makes one chunk
+            chunk_data = [] # all data for the chunk
+            for x in range(chunk_size): # 0, 1, 2, 3, 4, 5 , 6, 7 on the y axis
+                for y in  range(chunk_size): # 0, 1, 2, 3, 4, 5 , 6, 7 on the x axis (makes coords
+                    platform_x = chunk_x * chunk_size + x #  takes the x coordinate of the chunk   * chunk  size + x_chunk( to calculate how far it  is from 0,0)
+                    platform_y = chunk_y * chunk_size  + y # takes the y coordinate of  the chunk * chunk_size + y_chunk(to calculate  how far it is from 0,0)
 
+    class static_platform(platform):
+        def __init__(self, image, x, y):
+            super().__init__(image,x,y)
+            self.rect = pygame.Rect(x,y, 16, 16)
+            
+    def static_group(self, x, y, platform_image, group):
+        static_platform_tiles = []
+            
+        for i in range(3):
+            tile_x = x  + (i * 16)
+            tile = Game.static_platform(platform_image, tile_x, y)
+            group.add(tile)
+            static_platform_tiles.append(tile)
+        return static_platform_tiles
+            
     def collisons(self,rect, tiles):
         hit_list = []
         for tile in tiles:
@@ -103,7 +111,7 @@ class Game():
 
         return rect, collison_types
     
-    def main_loop(self):
+    def main_menu_loop(self):
         click = self.click
         surface = self.screen
         while True:
@@ -144,8 +152,7 @@ class Game():
             pygame.display.update()
             self.clock.tick(60)
 
-
-    def draw_pause():
+    def draw_pause(self):
         pass
 
     def game_loop(self):
@@ -166,19 +173,20 @@ class Game():
                     self.draw_pause()
             
             tile_rects = []
-            y = 0
-            for row in self.game_map:
-                x = 0
-                for tile in row:
-                    if tile == '1':
-                        self.display.blit(self.platform.dirt, (x*16 - self.scroll[0]  , y*16 - self.scroll[1]  ))
-                    if tile == '2':
-                        self.display.blit(self.platform.grass,(x*16 - self.scroll[0] ,y*16 - self.scroll[1] ))
-                    if tile != '0':
-                        tile_rects.append(pygame.Rect(x*16, y*16, 16, 16))
-                    x += 1
-                y += 1
-                           
+            for  y in range(3):
+                for x in  range(4):
+                    target_x = x - 1 + int(round(self.scroll[0]/(self.chunk_size*16)))
+                    target_y = y - 1 + int(round(self.scroll[1]/(self.chunk_size*16)))
+                    target_chunk = str(target_x) + ';' + str(target_y)
+            
+            self.static_group(100, 100, self.grass, self.platform_group)
+            
+            for tile in self.platform_group:
+                self.display.blit(tile.image, tile.rect.topleft)
+                
+            
+            
+                  
             self.Player.player_rect, collisons = self.move(self.Player.player_rect,self.Player.player_movement,tile_rects )
 
             if collisons["top"]:
@@ -201,4 +209,4 @@ class Game():
             self.clock.tick(60)
             self.display.fill((50,125,200))
 
-Game().main_loop()
+Game().main_menu_loop()
