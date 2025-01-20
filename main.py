@@ -21,49 +21,33 @@ class Game():
         self.grass = pygame.image.load("Images/grass.png").convert()
         self.platform_group = pygame.sprite.Group()
         
-    class Player():  
+    class Player(pygame.sprite.Sprite):  
         def __init__(self,game):
+            super().__init__()
             self.game = game
             self.x = 50
             self.y = 50
-            self.player_movement = [0,0]
             self.width = 50
             self.height = 50
-            self.velocity = 2.5
+            self.velocity = 0.25
             self.color = (255,100,10)
             self.player = pygame.image.load("Images/Platform_player.png").convert()
             self.player.set_colorkey((255,255,255))
             self.gravity = 0
-            self.player_rect = pygame.Rect(0,0, self.player.get_width(),self.player.get_height())
-
-        def move_buttons(self,keys):
-            self.player_movement = [0,0]
-            if keys[pygame.K_LEFT]:
-                self.player_movement[0] -= self.velocity
-            if keys[pygame.K_RIGHT]:
-                self.player_movement[0] +=  self.velocity
-            if keys[pygame.K_UP]:
-                if self.game.air_counter < 6:
-                    self.gravity = -4.5
-                    self.player_movement[1] = -4
-                    self.game.air_counter += 1
-    
+            self.rect = pygame.Rect(50,50, self.player.get_width(),self.player.get_height())
+            self.move_left = False
+            self.move_right = False
+            self.move_down = False
+        
         def draw_player(self,surface, scroll_x, scroll_y):
-            surface.blit(self.player, (self.player_rect.x - scroll_x, self.player_rect.y - scroll_y))
+            surface.blit(self.player, (self.rect.x - scroll_x, self.rect.y - scroll_y))
 
     class platform(pygame.sprite.Sprite):
         def __init__(self, image, x, y ):
             super().__init__()
             self.image = image
-            self.rect = self.image.get_rect(topleft=(x,y))
-    
-        def chunk_generation(chunk_x,chunk_y, chunk_size, platform_image, platforms_group): # makes one chunk
-            chunk_data = [] # all data for the chunk
-            for x in range(chunk_size): # 0, 1, 2, 3, 4, 5 , 6, 7 on the y axis
-                for y in  range(chunk_size): # 0, 1, 2, 3, 4, 5 , 6, 7 on the x axis (makes coords
-                    platform_x = chunk_x * chunk_size + x #  takes the x coordinate of the chunk   * chunk  size + x_chunk( to calculate how far it  is from 0,0)
-                    platform_y = chunk_y * chunk_size  + y # takes the y coordinate of  the chunk * chunk_size + y_chunk(to calculate  how far it is from 0,0)
-
+            self.rect = self.image.get_rect()
+            self.rect.topleft = (x, y)
     class static_platform(platform):
         def __init__(self, image, x, y):
             super().__init__(image,x,y)
@@ -78,37 +62,35 @@ class Game():
             group.add(tile)
             static_platform_tiles.append(tile)
         return static_platform_tiles
-            
-    def collisons(self,rect, tiles):
-        hit_list = []
-        for tile in tiles:
-            if rect.colliderect(tile):
-                hit_list.append(tile)
+
+
+    def collison_test(self,rect, tiles):#rect = player, and tiles is all the tiles
+        hit_list = [] #List of all collisons
+        for tile_rect in tiles: # each tiles rect
+            if rect.colliderect(tile_rect):
+                hit_list.append(tile_rect)
         return hit_list
 
-    def move(self, rect,movement,tiles):
+    def move(self,rect, movement, tiles):
         collison_types = {'top': False, 'bottom': False, 'right': False, 'left': False}
-    
         rect.x += movement[0]
-        hit_list = self.collisons(rect, tiles)
+        hit_list = self.collison_test(rect, tiles)
         for tile in hit_list:
-            if movement[0] < 0:
-                rect.left = tile.right
-                collison_types["left"] = True
             if movement[0] > 0:
                 rect.right = tile.left
-                collison_types["right"] = True
-    
-        rect.y +=  movement[1]
-        hit_list = self.collisons(rect, tiles)
-        for tile in  hit_list:
-            if movement[1] < 0:
-                rect.top = tile.bottom
-                collison_types["top"] = True
-            if  movement[1] > 0:
+                collison_types['right'] = True
+            elif movement[0] < 0:
+                rect.left = tile.right
+                collison_types['left'] = True
+        rect.y += movement[1]
+        hit_list = self.collison_test(rect,tiles)
+        for tile in hit_list:
+            if movement[1] > 0:
                 rect.bottom = tile.top
-                collison_types["bottom"] = True
-
+                collison_types['bottom'] = True
+            elif movement[1] < 0:
+                rect.top = tile.bottom
+                collison_types['top'] = True
         return rect, collison_types
     
     def main_menu_loop(self):
@@ -157,52 +139,63 @@ class Game():
 
     def game_loop(self):
         while True:
-            self.scroll[0] += (self.Player.player_rect.x - self.scroll[0] - 145) / 20
-            self.scroll[1] += (self.Player.player_rect.y - self.scroll[1] - 108) / 20
-
-            self.Player.player_movement[1] += self.Player.gravity
-            self.Player.gravity += 0.2
-            if self.Player.gravity > 3:
-                self.Player.gravity = 3
+            self.scroll[0] += (self.Player.rect.x - self.scroll[0] - 145) / 20
+            self.scroll[1] += (self.Player.rect.y - self.scroll[1] - 108) / 20
             
-            for  event in pygame.event.get():
-                if event.type ==  QUIT:
+            tile_rects = [sprite.rect for sprite in self.platform_group]
+
+            player_movement = [0,0]  
+            if self.Player.move_left:
+                player_movement[0] -= self.Player.velocity
+            elif self.Player.move_right:
+                player_movement[0] += self.Player.velocity
+            
+            self.Player.gravity += 0.20
+            if player_movement[1] > 3:
+                self.Player.gravity = 3
+            player_movement[1] += self.Player.gravity
+
+            print(f"{self.Player.rect.x} {self.Player.rect.y}")
+            
+            
+            for event in pygame.event.get():    
+                if event.type == pygame.QUIT:
                     pygame.quit()
                     sys.exit()
-                if event.type ==  KEYDOWN and event.key == K_ESCAPE:
-                    self.draw_pause()
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_LEFT:
+                        self.Player.move_left = True
+                    if event.key == pygame.K_RIGHT:
+                        self.Player.move_right = True
+                    if event.key == pygame.K_DOWN:
+                        self.Player.move_down =True
+                    if event.key == pygame.K_UP:
+                        if self.air_counter < 6:
+                            self.Player.gravity = -4.5
+                            player_movement[1] = -4
+                            self.air_counter += 1
+                if event.type == pygame.KEYUP:
+                    if event.key == pygame.K_LEFT:
+                        self.Player.move_left = False
+                    if event.key == pygame.K_RIGHT:
+                        self.Player.move_right = False
+                    if event.key == pygame.K_UP:
+                        player_movement[1] = 0
+                    if event.key == pygame.K_DOWN:
+                        self.Player.move_down = False
             
-            tile_rects = []
-            for  y in range(3):
-                for x in  range(4):
-                    target_x = x - 1 + int(round(self.scroll[0]/(self.chunk_size*16)))
-                    target_y = y - 1 + int(round(self.scroll[1]/(self.chunk_size*16)))
-                    target_chunk = str(target_x) + ';' + str(target_y)
-            
-            self.static_group(100, 100, self.grass, self.platform_group)
-            
-            for tile in self.platform_group:
-                self.display.blit(tile.image, tile.rect.topleft)
-                
-            
-            
-                  
-            self.Player.player_rect, collisons = self.move(self.Player.player_rect,self.Player.player_movement,tile_rects )
 
-            if collisons["top"]:
-                self.Player.gravity = 0.5
-            
-            if collisons["bottom"]:
+
+            self.Player.rect, collisions = self.move(self.Player.rect, player_movement, tile_rects)
+            if collisions['bottom']:
                 self.Player.gravity = 0
-                self.air_counter = 0 
-            else:
-                self.air_counter += 1
+                self.air_counter = 0
             
-            keys  = pygame.key.get_pressed()
-            self.Player.move_buttons(keys)     
-            
+            if collisions['top']:
+                self.Player.gravity = 1
+     
             self.Player.draw_player(self.display,self.scroll[0], self.scroll[1] )
-             
+            
             surf = pygame.transform.scale(self.display, self.window_size)
             self.screen.blit(surf, (0,0))
             pygame.display.update()
